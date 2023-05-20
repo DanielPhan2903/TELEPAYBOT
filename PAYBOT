@@ -5,10 +5,10 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, CallbackContext, CallbackQueryHandler
 
 # Set up Stripe API
-stripe.api_key = 'YOUR_STRIPE_SECRET_KEY'
+stripe.api_key = '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'
 
 # Telegram bot token
-TELEGRAM_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
+TELEGRAM_TOKEN = '5927796406:AAFJAmEFxuRANtnwazPb89WQViVHVgGiQD0'
 
 # Price per chat session in cents
 PRICE_PER_SESSION = 69
