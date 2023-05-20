@@ -80,3 +80,100 @@ def new_session(chat_id):
     # Set session expiration time to 10 minutes from now
     expiration_time = time.time() + 600
     sessions[chat_id] = expiration_time
+import os
+import time
+import stripe
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Updater, CommandHandler, CallbackContext, CallbackQueryHandler
+
+# Set up Stripe API
+stripe.api_key = 'YOUR_STRIPE_SECRET_KEY'
+
+# Telegram bot token
+TELEGRAM_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
+
+# Price per chat session in cents
+PRICE_PER_SESSION = 69
+
+# Store user chat session expiration times
+sessions = {}
+
+# Handler for /start command
+def start(update: Update, context: CallbackContext):
+    chat_id = update.effective_chat.id
+
+    # Check if user has an active chat session
+    if chat_id in sessions:
+        remaining_time = sessions[chat_id] - time.time()
+
+        # If session is still active, send the remaining time to the user
+        if remaining_time > 0:
+            context.bot.send_message(chat_id=chat_id, text=f"You have {int(remaining_time / 60)} minutes remaining.")
+
+            # Create inline keyboard with a "Top Up" button
+            keyboard = [
+                [InlineKeyboardButton("Top Up", callback_data="top_up")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            context.bot.send_message(chat_id=chat_id, text="Your session is still active.", reply_markup=reply_markup)
+            return
+
+    # Create a new chat session
+    new_session(chat_id)
+
+    # Send the payment request to the user
+    message = f"This chat session costs ${PRICE_PER_SESSION / 100:.2f} for 10 minutes.\n\nPlease make a payment to start chatting."
+    context.bot.send_message(chat_id=chat_id, text=message)
+
+# Handler for inline keyboard button clicks
+def button(update: Update, context: CallbackContext):
+    query = update.callback_query
+    chat_id = query.message.chat_id
+
+    # Check if the button clicked was the "Top Up" button
+    if query.data == "top_up":
+        new_session(chat_id)
+        message = f"Your chat session has been extended. You have {int(sessions[chat_id] / 60)} minutes remaining."
+        context.bot.send_message(chat_id=chat_id, text=message)
+
+# Handler for Stripe webhook events
+def stripe_webhook(request):
+    payload = request.get_data(as_text=True)
+    sig_header = request.headers.get('Stripe-Signature')
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, stripe_webhook_secret)
+        data = event['data']
+        object = data['object']
+
+        # Check if payment was successful
+        if event['type'] == 'charge.succeeded':
+            chat_id = object['metadata']['chat_id']
+            new_session(chat_id)
+            message = f"Payment successful. Your chat session has been extended. You have {int(sessions[chat_id] / 60)} minutes remaining."
+            context.bot.send_message(chat_id=chat_id, text=message)
+
+        return '', 200
+    except ValueError as e:
+        return '', 400
+
+# Helper function to create a new chat session
+def new_session(chat_id):
+    # Set session expiration time to 10 minutes from now
+    expiration_time = time.time() + 600
+    sessions[chat_id] = expiration_time
+# Set up the Telegram bot
+updater = Updater(token=TELEGRAM_TOKEN, use_context=True)
+dispatcher = updater.dispatcher
+
+# Register the handlers
+dispatcher.add_handler(CommandHandler("start", start))
+dispatcher.add_handler(CallbackQueryHandler(button))
+
+# Set up Stripe webhook endpoint
+stripe_webhook_secret = 'YOUR_STRIPE_WEBHOOK_SECRET'
+webhook_endpoint = '/stripe_webhook'
+updater.bot.setWebhook(url=f"https://{os.environ['KOYEB_APP_ID']}.koyeb.app{webhook_endpoint}")
+
+# Start the bot
+updater.start_polling()
