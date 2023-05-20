@@ -1,0 +1,10 @@
+[[build]]
+  group = "buildpacks"
+  buildpacks = ["python"]
+
+[[build]]
+  group = "buildpacks"
+  buildpacks = ["https://github.com/heroku/heroku-buildpack-apt"]
+
+[build.environment]
+  PYTHON_VERSION = "3.9.5"
